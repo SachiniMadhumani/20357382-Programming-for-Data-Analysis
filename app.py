@@ -111,7 +111,7 @@ app_ui = ui.page_sidebar(
             ui.h3("📈 Exploratory Data Analysis (EDA)"),
             
             ui.navset_card_tab(
-                # ==================== 1. Target Distribution ====================
+                # ==================== Target Distribution ====================
                 ui.nav_panel(
                     "📂 Target Distribution",
                     ui.card(
@@ -121,7 +121,7 @@ app_ui = ui.page_sidebar(
                     )
                 ),
                 
-                # ==================== 2. Numerical Features ====================
+                # ==================== Numerical Features ====================
                 ui.nav_panel(
                     "📂 Numerical Features",
                     ui.card(
@@ -130,7 +130,7 @@ app_ui = ui.page_sidebar(
                     )
                 ),
                 
-                # ==================== 3. Categorical Features ====================
+                # ==================== Categorical Features ====================
                 ui.nav_panel(
                     "📂 Categorical Features",
                     ui.card(
@@ -139,7 +139,7 @@ app_ui = ui.page_sidebar(
                     )
                 ),
                 
-                # ==================== 4. Correlation ====================
+                # ==================== Correlation ====================
                 ui.nav_panel(
                     "📂 Correlation Heatmap",
                     ui.card(
