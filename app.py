@@ -1,9 +1,10 @@
 from shiny import App, ui, render, reactive
 import pandas as pd
 import joblib
-import plotly.express as px
 import warnings
 import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
 warnings.filterwarnings('ignore', category=UserWarning)
 
 # ====================== LOAD DATA & MODELS ======================
@@ -107,24 +108,46 @@ app_ui = ui.page_sidebar(
 
         ui.panel_conditional(
             "input.nav == 'eda'",
-            ui.h3("📈 Exploratory Data Analysis"),
-            ui.navset_tab(
-                ui.nav_panel("Target Overview",
-                    ui.layout_columns(
-                        ui.card(ui.card_header("Pie Chart"), ui.output_plot("target_pie")),
-                        ui.card(ui.card_header("Bar Chart"), ui.output_plot("target_bar"))
+            ui.h3("📈 Exploratory Data Analysis (EDA)"),
+            
+            ui.navset_card_tab(
+                # ==================== 1. Target Distribution ====================
+                ui.nav_panel(
+                    "📂 Target Distribution",
+                    ui.card(
+                        ui.card_body(
+                            ui.output_plot("plot_target_dist", height="500px")
+                        )
                     )
                 ),
-                ui.nav_panel("Demographics",
-                    ui.layout_columns(
-                        ui.card(ui.card_header("Age Distribution"), ui.output_plot("age_hist")),
-                        ui.card(ui.card_header("Default Rate by Gender"), ui.output_plot("gender_bar"))
+                
+                # ==================== 2. Numerical Features ====================
+                ui.nav_panel(
+                    "📂 Numerical Features",
+                    ui.card(
+                         ui.card_header("Numerical Feature Distributions"),
+                        ui.output_plot("plot_all_numerical", height="1000px")
                     )
                 ),
-                ui.nav_panel("Financial Factors",
-                    ui.layout_columns(
-                        ui.card(ui.card_header("Default Rate by Education"), ui.output_plot("education_bar")),
-                        ui.card(ui.card_header("Default Rate by Income Type"), ui.output_plot("income_type_bar"))
+                
+                # ==================== 3. Categorical Features ====================
+                ui.nav_panel(
+                    "📂 Categorical Features",
+                    ui.card(
+                        ui.card_header("Categorical Feature Distributions"),
+                        ui.output_plot("plot_all_categorical", height="1000px")
+                    )
+                ),
+                
+                # ==================== 4. Correlation ====================
+                ui.nav_panel(
+                    "📂 Correlation Heatmap",
+                    ui.card(
+                        ui.card_header("Feature Correlation Heatmap"),
+                        ui.card_body(
+                            ui.output_plot("plot_correlation", height="700px", width="100%")
+                        ),
+                        ui.card_footer("Darker color = stronger positive correlation | Lighter color = stronger negative correlation")
                     )
                 )
             )
@@ -144,30 +167,30 @@ app_ui = ui.page_sidebar(
             
             ui.layout_columns(
                 ui.card(
-                    ui.input_numeric("age", "Age", value=35, min=18, max=100),
-                    ui.input_numeric("income", "Monthly Income ($)", value=150000, min=0),
                     ui.input_numeric("years_employed", "Years Employed", value=8, min=0),
-                    ui.input_numeric("family_size", "Family Size", value=3, min=1),
+                    ui.input_numeric("income", "Monthly Income ($)", value=150000, min=0),
                     ui.input_numeric("begin_month", "Begin Month (e.g. 10)", value=30),
-                    
-                    # Dynamic Age Group Display
-                    ui.output_text("dynamic_age_group")
+                    ui.input_select("income_type", "Income Type", 
+                                ["Working", "Commercial associate", "State servant", "Pensioner", "Student"]),
+                    ui.input_select("car", "Owns Car?", ["Yes", "No"]),
+                    ui.input_select("property", "Owns Property?", ["Yes", "No"]),         
                 ),
                 
                 ui.card(
                     ui.input_select("gender", "Gender", ["Male", "Female"]),
-                    ui.input_select("car", "Owns Car?", ["Yes", "No"]),
-                    ui.input_select("property", "Owns Property?", ["Yes", "No"]),
+                    ui.input_numeric("age", "Age", value=35, min=18, max=100),
                     ui.input_select("education", "Education", 
                                 ["Higher education", "Secondary / secondary special", 
                                     "Incomplete higher", "Lower secondary", "Academic degree"]),
-                    ui.input_select("income_type", "Income Type", 
-                                ["Working", "Commercial associate", "State servant", "Pensioner", "Student"]),
                     ui.input_select("family_type", "Family Type", 
                                 ["Married", "Single / not married", "Civil marriage", "Separated", "Widow"]),
+                    ui.input_numeric("family_size", "Family Size", value=3, min=1),
                     ui.input_select("house_type", "House Type", 
                                 ["House / apartment", "With parents", "Municipal apartment", 
                                     "Rented apartment", "Office apartment", "Co-op apartment"]),
+
+                    # Dynamic Age Group Display
+                    ui.output_text("dynamic_age_group")      
                 )
             ),
             
@@ -197,43 +220,101 @@ def server(input, output, session):
     def gui_test_table():
         return gui_test_df   
     
+    # 1. Target Distribution
     @output
     @render.plot
-    def target_pie():
-        fig = px.pie(df, names='TARGET', hole=0.4, title="Target Distribution")
+    def plot_target_dist():
+        fig, ax = plt.subplots(figsize=(8, 6))
+        df['TARGET'].value_counts().plot(kind='pie', autopct='%1.1f%%', 
+                                        colors=['#4CAF50', '#f44336'], ax=ax)
+        ax.set_title('Target Distribution (Fraud vs Non-Fraud)', fontsize=16)
         return fig
 
     @output
     @render.plot
-    def target_bar():
-        fig = px.histogram(df, x='TARGET', title="Target Distribution (Bar)")
+    def plot_all_numerical():
+        numeric_cols = df.select_dtypes(include=['int64', 'float64']).columns.tolist()
+
+        n_cols = 2
+        n_rows = (len(numeric_cols) + 1) // n_cols
+
+        fig, axes = plt.subplots(
+            n_rows, n_cols,
+            figsize=(18, 4 * n_rows),  
+            dpi=120
+        )
+
+        axes = axes.flatten()
+
+        for i, col in enumerate(numeric_cols):
+            # Handle low unique values separately
+            if df[col].nunique() <= 5:
+                sns.countplot(data=df, x=col, hue='TARGET', ax=axes[i])
+            else:
+                sns.histplot(data=df, x=col, hue='TARGET', bins=30, kde=False, ax=axes[i])
+
+            # Titles & fonts
+            axes[i].set_title(col, fontsize=11)
+            axes[i].set_xlabel("")
+            axes[i].set_ylabel("Count", fontsize=9)
+
+            axes[i].tick_params(axis='x', labelsize=8, rotation=20)
+            axes[i].tick_params(axis='y', labelsize=8)
+
+        # Remove empty plots
+        for j in range(i + 1, len(axes)):
+            fig.delaxes(axes[j])
+
+        plt.tight_layout(pad=1.0)
+
+        return fig
+
+    # 6. Correlation Heatmap
+    @output
+    @render.plot
+    def plot_correlation():
+        fig, ax = plt.subplots(figsize=(12, 10))
+        numeric_df = df.select_dtypes(include=['number'])
+        corr = numeric_df.corr()
+        sns.heatmap(corr, annot=True, cmap='coolwarm', center=0, ax=ax)
+        ax.set_title('Correlation Heatmap')
         return fig
 
     @output
     @render.plot
-    def age_hist():
-        fig = px.histogram(df, x='AGE', color='TARGET', nbins=30, title="Age Distribution")
-        return fig
+    def plot_all_categorical():
+        cat_cols = df.select_dtypes(include=['object']).columns.tolist()
 
-    @output
-    @render.plot
-    def gender_bar():
-        rate = df.groupby('GENDER')['TARGET'].mean().reset_index()
-        fig = px.bar(rate, x='GENDER', y='TARGET', title="Default Rate by Gender")
-        return fig
+        n_cols = 2   
+        n_rows = (len(cat_cols) + 1) // n_cols
 
-    @output
-    @render.plot
-    def education_bar():
-        rate = df.groupby('EDUCATION_TYPE')['TARGET'].mean().reset_index()
-        fig = px.bar(rate, x='EDUCATION_TYPE', y='TARGET', title="Default Rate by Education")
-        return fig
+        fig, axes = plt.subplots(
+            n_rows, n_cols,
+            figsize=(18, 5 * n_rows),
+            dpi=120
+        )
 
-    @output
-    @render.plot
-    def income_type_bar():
-        rate = df.groupby('INCOME_TYPE')['TARGET'].mean().reset_index()
-        fig = px.bar(rate, x='INCOME_TYPE', y='TARGET', title="Default Rate by Income Type")
+        axes = axes.flatten()
+
+        for i, col in enumerate(cat_cols):
+            df[col].value_counts().plot(kind='bar', ax=axes[i])
+
+            # Title
+            axes[i].set_title(col, fontsize=8)
+
+            # Axis labels
+            axes[i].set_xlabel("")  
+            axes[i].set_ylabel("Count", fontsize=6)
+
+            # Tick label sizes
+            axes[i].tick_params(axis='x', labelsize=6, rotation=30)
+            axes[i].tick_params(axis='y', labelsize=6)
+
+        # Remove empty plots
+        for j in range(i + 1, len(axes)):
+            fig.delaxes(axes[j])
+
+        plt.tight_layout()
         return fig
 
     @output
@@ -338,7 +419,7 @@ def server(input, output, session):
             else:
                 final_prob = xgb_prob
 
-            msg = "🚨 FRAUD DETECTED" if final_prob > 0.5 else "✅ NON-FRAUD"
+            msg = "🚨 FRAUD TRANSACTION DETECTED" if final_prob > 0.5 else "✅ NON-FRAUD TRANSACTION"
             ui.notification_show(msg, 
                                 type="error" if final_prob > 0.5 else "success", 
                                 duration=10)
