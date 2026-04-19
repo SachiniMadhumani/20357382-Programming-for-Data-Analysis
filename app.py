@@ -120,22 +120,23 @@ app_ui = ui.page_sidebar(
                         )
                     )
                 ),
-                
-                # ==================== Numerical Features ====================
-                ui.nav_panel(
-                    "📂 Numerical Features",
-                    ui.card(
-                         ui.card_header("Numerical Feature Distributions"),
-                        ui.output_plot("plot_all_numerical", height="1000px")
-                    )
-                ),
+        
                 
                 # ==================== Categorical Features ====================
                 ui.nav_panel(
                     "📂 Categorical Features",
                     ui.card(
                         ui.card_header("Categorical Feature Distributions"),
-                        ui.output_plot("plot_all_categorical", height="1000px")
+                        ui.output_plot("plot_all_categorical", height="1200px"),
+                        style="""
+                        width: 100%;
+                        height: 1200px;
+                        padding: 15px;
+                        background: white;
+                        border-radius: 8px;
+                        overflow: auto;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                        """
                     )
                 ),
                 
@@ -228,45 +229,6 @@ def server(input, output, session):
         df['TARGET'].value_counts().plot(kind='pie', autopct='%1.1f%%', 
                                         colors=['#4CAF50', '#f44336'], ax=ax)
         ax.set_title('Target Distribution (Fraud vs Non-Fraud)', fontsize=16)
-        return fig
-
-    @output
-    @render.plot
-    def plot_all_numerical():
-        numeric_cols = df.select_dtypes(include=['int64', 'float64']).columns.tolist()
-
-        n_cols = 2
-        n_rows = (len(numeric_cols) + 1) // n_cols
-
-        fig, axes = plt.subplots(
-            n_rows, n_cols,
-            figsize=(18, 4 * n_rows),  
-            dpi=120
-        )
-
-        axes = axes.flatten()
-
-        for i, col in enumerate(numeric_cols):
-            # Handle low unique values separately
-            if df[col].nunique() <= 5:
-                sns.countplot(data=df, x=col, hue='TARGET', ax=axes[i])
-            else:
-                sns.histplot(data=df, x=col, hue='TARGET', bins=30, kde=False, ax=axes[i])
-
-            # Titles & fonts
-            axes[i].set_title(col, fontsize=11)
-            axes[i].set_xlabel("")
-            axes[i].set_ylabel("Count", fontsize=9)
-
-            axes[i].tick_params(axis='x', labelsize=8, rotation=20)
-            axes[i].tick_params(axis='y', labelsize=8)
-
-        # Remove empty plots
-        for j in range(i + 1, len(axes)):
-            fig.delaxes(axes[j])
-
-        plt.tight_layout(pad=1.0)
-
         return fig
 
     # 6. Correlation Heatmap
